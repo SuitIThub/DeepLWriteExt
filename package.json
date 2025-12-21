@@ -1,0 +1,167 @@
+{
+  "name": "deepl-write-extension",
+  "displayName": "DeepL Write Extension",
+  "description": "Improve your text using DeepL Write API",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "deeplWrite.improveText",
+        "title": "Improve Text with DeepL Write"
+      },
+      {
+        "command": "deeplWrite.setApiKey",
+        "title": "Set API Key"
+      },
+      {
+        "command": "deeplWrite.setLanguage",
+        "title": "Set Language"
+      },
+      {
+        "command": "deeplWrite.setWritingStyle",
+        "title": "Set Writing Style"
+      },
+      {
+        "command": "deeplWrite.setTone",
+        "title": "Set Tone"
+      },
+      {
+        "command": "deeplWrite.managePatterns",
+        "title": "Manage Regex Patterns"
+      },
+      {
+        "command": "deeplWrite.openKeyboardShortcuts",
+        "title": "Change Keyboard Shortcut"
+      },
+      {
+        "command": "deeplWrite.acceptChanges",
+        "title": "Accept Changes"
+      },
+      {
+        "command": "deeplWrite.rejectChanges",
+        "title": "Reject Changes"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "deeplWrite.improveText",
+          "when": "editorHasSelection",
+          "group": "deeplWrite"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "deeplWrite.improveText",
+        "key": "ctrl+shift+w",
+        "mac": "cmd+shift+w",
+        "when": "editorHasSelection"
+      }
+    ],
+    "configuration": {
+      "title": "DeepL Write",
+      "properties": {
+        "deeplWrite.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "DeepL API authentication key",
+          "scope": "application"
+        },
+        "deeplWrite.targetLanguage": {
+          "type": "string",
+          "default": "",
+          "description": "Target language for text improvement (e.g., EN-US, EN-GB, DE, FR)",
+          "scope": "application"
+        },
+        "deeplWrite.writingStyle": {
+          "type": "string",
+          "default": "",
+          "description": "Writing style for text improvement (default, simple, business, academic, casual, or prefer_* variants). Only supported for DE, EN-GB, EN-US.",
+          "scope": "application",
+          "enum": [
+            "",
+            "default",
+            "simple",
+            "business",
+            "academic",
+            "casual",
+            "prefer_simple",
+            "prefer_business",
+            "prefer_academic",
+            "prefer_casual"
+          ]
+        },
+        "deeplWrite.tone": {
+          "type": "string",
+          "default": "",
+          "description": "Tone for text improvement (default, enthusiastic, friendly, confident, diplomatic, or prefer_* variants). Only supported for DE, EN-GB, EN-US.",
+          "scope": "application",
+          "enum": [
+            "",
+            "default",
+            "enthusiastic",
+            "friendly",
+            "confident",
+            "diplomatic",
+            "prefer_enthusiastic",
+            "prefer_friendly",
+            "prefer_confident",
+            "prefer_diplomatic"
+          ]
+        },
+        "deeplWrite.patterns": {
+          "type": "array",
+          "default": [],
+          "description": "Regex patterns with named capture groups for selective text improvement",
+          "scope": "application",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Pattern name"
+              },
+              "pattern": {
+                "type": "string",
+                "description": "Regex pattern (must include named capture group like (?<text>...))"
+              },
+              "captureGroupName": {
+                "type": "string",
+                "description": "Name of the capture group to extract"
+              },
+              "description": {
+                "type": "string",
+                "description": "Optional description"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}
+
