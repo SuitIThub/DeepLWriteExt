@@ -1,6 +1,6 @@
 # DeepL Write Extension for VSCode
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)
 ![VSCode](https://img.shields.io/badge/VSCode-%3E%3D1.74.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-4.9.4-blue.svg)
@@ -193,6 +193,7 @@ Press `F5` in VSCode to launch the Extension Development Host and test the exten
 - `src/extension.ts` - Main extension code
 - `package.json` - Extension manifest and configuration
 - `tsconfig.json` - TypeScript configuration
+- `icon.png` - Extension icon (128x128 PNG)
 
 ## Troubleshooting
 
@@ -227,6 +228,9 @@ MIT
 - VSCode Extension API documentation
 
 ## Changelog
+
+### Version 1.0.1
+- Added extension icon
 
 ### Version 1.0.0
 - Initial release

@@ -2,7 +2,13 @@
   "name": "deepl-write-extension",
   "displayName": "DeepL Write Extension",
   "description": "Improve your text using DeepL Write API",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "publisher": "Suit-Ji",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SuitIThub/DeepLWriteExt"
+  },
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -153,7 +159,9 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "publish": "vsce publish"
   },
   "devDependencies": {
     "@types/vscode": "^1.74.0",
