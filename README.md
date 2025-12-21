@@ -1,6 +1,6 @@
 # DeepL Write Extension for VSCode
 
-![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)
 ![VSCode](https://img.shields.io/badge/VSCode-%3E%3D1.74.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-4.9.4-blue.svg)
@@ -228,6 +228,11 @@ MIT
 - VSCode Extension API documentation
 
 ## Changelog
+
+### Version 1.0.2
+- Fixed notification dismissal when accepting/rejecting changes via status bar buttons
+- Improved pattern matching to only apply first matching pattern per text segment (prevents overlapping matches)
+- Enhanced language mode preservation in diff view
 
 ### Version 1.0.1
 - Added extension icon

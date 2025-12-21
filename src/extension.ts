@@ -95,6 +95,7 @@ interface PatternMatch {
 class ImprovedTextProvider implements vscode.TextDocumentContentProvider {
     private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
     private improvedTexts = new Map<string, string>();
+    private documentLanguages = new Map<string, string>();
 
     provideTextDocumentContent(uri: vscode.Uri): string {
         const key = uri.path;
@@ -105,13 +106,24 @@ class ImprovedTextProvider implements vscode.TextDocumentContentProvider {
         return this._onDidChange.event;
     }
 
-    updateImprovedText(uri: vscode.Uri, content: string) {
-        this.improvedTexts.set(uri.path, content);
+    updateImprovedText(uri: vscode.Uri, content: string, languageId?: string) {
+        const key = uri.path;
+        this.improvedTexts.set(key, content);
+        if (languageId) {
+            this.documentLanguages.set(key, languageId);
+        }
         this._onDidChange.fire(uri);
     }
 
+    getDocumentLanguage(uri: vscode.Uri): string | undefined {
+        const key = uri.path;
+        return this.documentLanguages.get(key);
+    }
+
     clearImprovedText(uri: vscode.Uri) {
-        this.improvedTexts.delete(uri.path);
+        const key = uri.path;
+        this.improvedTexts.delete(key);
+        this.documentLanguages.delete(key);
     }
 }
 
@@ -124,6 +136,8 @@ interface ImprovementContext {
 }
 
 let currentImprovementContext: ImprovementContext | null = null;
+let activeNotification: Thenable<string | undefined> | null = null;
+let notificationHandled = false;
 
 export function activate(context: vscode.ExtensionContext) {
     // Create output channel for logging
@@ -461,6 +475,17 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
+        // Mark notification as handled and try to close it
+        notificationHandled = true;
+        if (activeNotification) {
+            try {
+                await vscode.commands.executeCommand('workbench.action.closeMessages');
+            } catch (e) {
+                // Command might not be available, ignore
+            }
+            activeNotification = null;
+        }
+
         const context = currentImprovementContext;
         const originalDoc = await vscode.workspace.openTextDocument(context.originalUri);
         
@@ -472,7 +497,10 @@ export function activate(context: vscode.ExtensionContext) {
         if (success) {
             // Switch back to original document
             await vscode.window.showTextDocument(originalDoc);
-            vscode.window.showInformationMessage('Text improved successfully!');
+            // Small delay to ensure the previous notification is dismissed
+            setTimeout(() => {
+                vscode.window.showInformationMessage('Text improved successfully!');
+            }, 150);
             // Clean up
             improvedTextProvider.clearImprovedText(context.improvedUri);
             currentImprovementContext = null;
@@ -490,12 +518,26 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
+        // Mark notification as handled and try to close it
+        notificationHandled = true;
+        if (activeNotification) {
+            try {
+                await vscode.commands.executeCommand('workbench.action.closeMessages');
+            } catch (e) {
+                // Command might not be available, ignore
+            }
+            activeNotification = null;
+        }
+
         const context = currentImprovementContext;
         const originalDoc = await vscode.workspace.openTextDocument(context.originalUri);
         
         // Switch back to original document
         await vscode.window.showTextDocument(originalDoc);
-        vscode.window.showInformationMessage('Changes rejected');
+        // Small delay to ensure the previous notification is dismissed
+        setTimeout(() => {
+            vscode.window.showInformationMessage('Changes rejected');
+        }, 150);
         
         // Clean up
         improvedTextProvider.clearImprovedText(context.improvedUri);
@@ -615,7 +657,7 @@ export function activate(context: vscode.ExtensionContext) {
                         headers: {
                             'Authorization': `DeepL-Auth-Key ${apiKey}`,
                             'Content-Type': 'application/json',
-                            'User-Agent': 'DeepLWriteExtension/1.0.0'
+                            'User-Agent': 'DeepLWriteExtension/1.0.2'
                         }
                     }
                 );
@@ -649,11 +691,17 @@ export function activate(context: vscode.ExtensionContext) {
                         `${DEEPL_WRITE_SCHEME}:${fileName}.improved`
                     );
                     
-                    // Update the content provider with improved text
-                    improvedTextProvider.updateImprovedText(improvedUri, improvedDocumentText);
+                    // Update the content provider with improved text, preserving the original language
+                    const originalLanguageId = originalDoc.languageId;
+                    improvedTextProvider.updateImprovedText(improvedUri, improvedDocumentText, originalLanguageId);
                     
                     // Open the improved document
                     const improvedDoc = await vscode.workspace.openTextDocument(improvedUri);
+                    
+                    // Set the language mode to match the original document
+                    if (originalLanguageId) {
+                        await vscode.languages.setTextDocumentLanguage(improvedDoc, originalLanguageId);
+                    }
                     
                     // Store improvement context for accept/reject commands
                     currentImprovementContext = {
@@ -675,20 +723,42 @@ export function activate(context: vscode.ExtensionContext) {
                         improvedUri,
                         `${fileName} (Original ↔ Improved)`
                     );
+                    
+                    // Set the language mode for the improved document to match the original
+                    // This needs to be done after the diff view is opened
+                    setTimeout(async () => {
+                        const visibleEditors = vscode.window.visibleTextEditors;
+                        for (const visibleEditor of visibleEditors) {
+                            if (visibleEditor.document.uri.toString() === improvedUri.toString()) {
+                                const storedLanguageId = improvedTextProvider.getDocumentLanguage(improvedUri);
+                                if (storedLanguageId && storedLanguageId !== visibleEditor.document.languageId) {
+                                    await vscode.languages.setTextDocumentLanguage(visibleEditor.document, storedLanguageId);
+                                }
+                                break;
+                            }
+                        }
+                    }, 100);
 
                     // Show a prominent notification with action buttons that appears immediately
                     // This notification is non-blocking and stays visible
-                    vscode.window.showInformationMessage(
+                    activeNotification = vscode.window.showInformationMessage(
                         '✓ Text improved! Review the diff and click below to accept or reject:',
                         { modal: false },
                         '✓ Accept Changes',
                         '✗ Reject Changes'
-                    ).then(action => {
-                        if (action === '✓ Accept Changes') {
-                            vscode.commands.executeCommand('deeplWrite.acceptChanges');
-                        } else if (action === '✗ Reject Changes') {
-                            vscode.commands.executeCommand('deeplWrite.rejectChanges');
+                    );
+                    notificationHandled = false;
+                    activeNotification.then(action => {
+                        // Only handle if not already handled via status bar
+                        if (!notificationHandled && action) {
+                            if (action === '✓ Accept Changes') {
+                                vscode.commands.executeCommand('deeplWrite.acceptChanges');
+                            } else if (action === '✗ Reject Changes') {
+                                vscode.commands.executeCommand('deeplWrite.rejectChanges');
+                            }
                         }
+                        activeNotification = null;
+                        notificationHandled = false;
                     });
 
                     // Also add a visible indicator in the diff editor after it opens
@@ -788,11 +858,22 @@ function setPatterns(patterns: RegexPattern[]): Thenable<void> {
 }
 
 /**
+ * Checks if two ranges overlap
+ */
+function rangesOverlap(start1: number, end1: number, start2: number, end2: number): boolean {
+    return start1 < end2 && start2 < end1;
+}
+
+/**
  * Applies regex patterns to text and extracts matches with named capture groups
+ * Only the first matching pattern for each piece of text is applied (no overlaps)
  */
 function applyPatterns(text: string, patterns: RegexPattern[], outputChannel?: vscode.OutputChannel): PatternMatch[] {
     const matches: PatternMatch[] = [];
+    // Track which parts of the text have already been matched (by capture group positions)
+    const matchedRanges: Array<{ start: number; end: number }> = [];
     
+    // Check patterns in order - first pattern that matches takes precedence
     for (const patternConfig of patterns) {
         try {
             const regex = new RegExp(patternConfig.pattern, 'g');
@@ -811,15 +892,26 @@ function applyPatterns(text: string, patterns: RegexPattern[], outputChannel?: v
                     const captureGroupStart = matchStart + captureGroupIndex;
                     const captureGroupEnd = captureGroupStart + captureGroupContent.length;
                     
-                    matches.push({
-                        fullMatch: fullMatch,
-                        captureGroupContent: captureGroupContent,
-                        startIndex: matchStart,
-                        endIndex: matchEnd,
-                        captureGroupStart: captureGroupStart,
-                        captureGroupEnd: captureGroupEnd,
-                        patternName: patternConfig.name
-                    });
+                    // Check if this capture group overlaps with any already matched region
+                    const overlaps = matchedRanges.some(range => 
+                        rangesOverlap(captureGroupStart, captureGroupEnd, range.start, range.end)
+                    );
+                    
+                    // Only add if it doesn't overlap with existing matches
+                    if (!overlaps) {
+                        matches.push({
+                            fullMatch: fullMatch,
+                            captureGroupContent: captureGroupContent,
+                            startIndex: matchStart,
+                            endIndex: matchEnd,
+                            captureGroupStart: captureGroupStart,
+                            captureGroupEnd: captureGroupEnd,
+                            patternName: patternConfig.name
+                        });
+                        
+                        // Mark this region as matched
+                        matchedRanges.push({ start: captureGroupStart, end: captureGroupEnd });
+                    }
                 }
             }
         } catch (error) {

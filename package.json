@@ -2,7 +2,7 @@
   "name": "deepl-write-extension",
   "displayName": "DeepL Write Extension",
   "description": "Improve your text using DeepL Write API",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "Suit-Ji",
   "icon": "icon.png",
   "repository": {
