@@ -160,7 +160,7 @@ The extension supports regex patterns with named capture groups to improve only 
 - Patterns must use **named capture groups** in the format `(?<name>...)`
 - The capture group name must match what you enter in "Capture Group Name"
 - Patterns are tested in order, and all matches are processed
-- If multiple patterns match the same text, all matches are processed
+- If multiple patterns match the same text, the first match is applied
 
 ### Tips
 
