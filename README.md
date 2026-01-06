@@ -1,6 +1,6 @@
 # DeepL Write Extension for VSCode
 
-![Version](https://img.shields.io/badge/version-1.0.3-blue.svg)
+![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
 ![VSCode](https://img.shields.io/badge/VSCode-%3E%3D1.74.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-4.9.4-blue.svg)
@@ -18,10 +18,9 @@ A VSCode extension that improves your text using the DeepL Write API. This exten
 - **Multiline Support**: Automatically handles multiline text selections while preserving structure
 - **Writing Style & Tone**: Customize writing style (simple, business, academic, casual) and tone (enthusiastic, friendly, confident, diplomatic) for supported languages
 - **Regex Pattern Support**: Configure regex patterns with named capture groups to improve only specific parts of text (e.g., code comments, quoted strings)
+- **Pattern Management Sidebar**: Visual sidebar panel to manage patterns with checkboxes to enable/disable them
 
-## Getting Started
-
-### Prerequisites
+## Prerequisites
 
 - A DeepL API Pro account (Write API is only available for Pro subscriptions)
 - Your DeepL API authentication key
@@ -30,15 +29,16 @@ You can create a Pro API account at [DeepL API](https://www.deepl.com/pro-api).
 
 **Note**: DeepL Write API is currently only available for Pro API subscribers, not Free API accounts.
 
-### Installation
+## Installation
 
-1. Clone or download this repository
-2. Open the folder in VSCode
-3. Run `npm install` to install dependencies
-4. Press `F5` to launch a new Extension Development Host window
-5. In the new window, test the extension
+Install the extension from the [VSCode Marketplace](https://marketplace.visualstudio.com/) or [OpenVSX](https://open-vsx.org/).
 
-### Configuration
+1. Open VSCode
+2. Go to Extensions view (`Ctrl+Shift+X` / `Cmd+Shift+X`)
+3. Search for "DeepL Write Extension"
+4. Click Install
+
+## Configuration
 
 1. **Set API Key**:
    - Click on the "DeepL Write" status bar item (bottom left)
@@ -62,15 +62,17 @@ You can create a Pro API account at [DeepL API](https://www.deepl.com/pro-api).
 
 5. **Configure Regex Patterns** (optional):
    - Click on the "DeepL Write" status bar item
-   - Select "Manage Regex Patterns"
-   - Add patterns to improve only specific parts of text (see [Regex Patterns](#regex-patterns) section)
+   - Select "Manage Regex Patterns" to open the patterns sidebar
+   - Use the "Add Pattern" button to create new patterns
+   - Toggle patterns on/off using checkboxes
+   - Edit or delete patterns using the context menu (right-click)
 
 6. **Customize Keyboard Shortcut**:
    - Click on the "DeepL Write" status bar item
    - Select "Change Keyboard Shortcut"
    - Search for "deeplWrite.improveText" and set your preferred shortcut
 
-### Usage
+## Usage
 
 1. **Select text** in any editor
 2. **Improve text** using one of these methods:
@@ -147,13 +149,20 @@ The extension supports regex patterns with named capture groups to improve only 
 ### How to Configure Patterns
 
 1. Click the "DeepL Write" status bar item
-2. Select "Manage Regex Patterns"
-3. Click "Add Pattern"
+2. Select "Manage Regex Patterns" to open the patterns sidebar
+3. Click the "Add Pattern" button in the sidebar title
 4. Enter:
    - **Name**: A descriptive name (e.g., "Single Quotes")
    - **Pattern**: The regex pattern with a named capture group (e.g., `character\s+'(?<text>[^\']*)'`)
    - **Capture Group Name**: The name of the capture group to extract (e.g., `text`)
    - **Description** (optional): A description of what the pattern does
+
+### Pattern Management
+
+- **Enable/Disable Patterns**: Use the checkboxes in the sidebar to toggle patterns on/off
+- **Edit Patterns**: Right-click on a pattern and select "Edit Pattern"
+- **Delete Patterns**: Right-click on a pattern and select "Delete Pattern"
+- Only enabled patterns are used when improving text
 
 ### Pattern Requirements
 
@@ -175,26 +184,6 @@ The extension supports regex patterns with named capture groups to improve only 
 
 The extension automatically detects whether you're using a free or Pro API key (free keys end with `:fx`). However, note that DeepL Write API is only available for Pro API subscriptions.
 
-## Development
-
-### Building
-
-```bash
-npm install
-npm run compile
-```
-
-### Testing
-
-Press `F5` in VSCode to launch the Extension Development Host and test the extension.
-
-### Project Structure
-
-- `src/extension.ts` - Main extension code
-- `package.json` - Extension manifest and configuration
-- `tsconfig.json` - TypeScript configuration
-- `icon.png` - Extension icon (128x128 PNG)
-
 ## Troubleshooting
 
 ### Pattern Not Matching
@@ -204,6 +193,7 @@ If your regex pattern isn't matching:
 2. Verify your regex pattern syntax
 3. Ensure the named capture group exists and matches the capture group name
 4. Test your pattern with the actual text format (check for special characters, quotes, etc.)
+5. Make sure the pattern is enabled in the patterns sidebar
 
 ### Writing Style/Tone Not Working
 
@@ -222,31 +212,36 @@ If your regex pattern isn't matching:
 
 MIT
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a detailed list of changes.
+
+---
+
+## Development
+
+This section is for contributors who want to build and develop the extension.
+
+### Building
+
+```bash
+npm install
+npm run compile
+```
+
+### Testing
+
+Press `F5` in VSCode to launch the Extension Development Host and test the extension.
+
+### Project Structure
+
+- `src/extension.ts` - Main extension code
+- `package.json` - Extension manifest and configuration
+- `tsconfig.json` - TypeScript configuration
+- `icon.png` - Extension icon (128x128 PNG)
+- `CHANGELOG.md` - Detailed changelog
+
 ## Acknowledgments
 
 - [DeepL API](https://developers.deepl.com/) for the text improvement API
 - VSCode Extension API documentation
-
-## Changelog
-
-### Version 1.0.3
-- Correction of Readme concerning Regex pattern matching
-
-### Version 1.0.2
-- Fixed notification dismissal when accepting/rejecting changes via status bar buttons
-- Improved pattern matching to only apply first matching pattern per text segment (prevents overlapping matches)
-- Enhanced language mode preservation in diff view
-
-### Version 1.0.1
-- Added extension icon
-
-### Version 1.0.0
-- Initial release
-- Text improvement with DeepL Write API
-- Context menu and keyboard shortcut support
-- Status bar configuration menu
-- Writing style and tone support
-- Regex pattern support for selective text improvement
-- Multiline text support
-- Accept/Reject buttons in diff view
-- Inline diff comparison

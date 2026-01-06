@@ -78,6 +78,7 @@ interface RegexPattern {
     pattern: string;
     captureGroupName: string;
     description?: string;
+    enabled?: boolean; // Whether the pattern is active for text improvement
 }
 
 // Match information for pattern-based improvement
@@ -127,6 +128,51 @@ class ImprovedTextProvider implements vscode.TextDocumentContentProvider {
     }
 }
 
+// Tree item for pattern list
+class PatternTreeItem extends vscode.TreeItem {
+    constructor(
+        public readonly pattern: RegexPattern,
+        public readonly index: number,
+        public readonly collapsibleState: vscode.TreeItemCollapsibleState
+    ) {
+        super(pattern.name, collapsibleState);
+        this.tooltip = pattern.description || pattern.pattern;
+        this.description = pattern.description || pattern.pattern.substring(0, 50);
+        // Set checkbox state based on enabled property
+        this.checkboxState = pattern.enabled !== false ? vscode.TreeItemCheckboxState.Checked : vscode.TreeItemCheckboxState.Unchecked;
+        // Add context value for menu
+        this.contextValue = 'pattern';
+    }
+}
+
+// Tree data provider for patterns
+class PatternTreeDataProvider implements vscode.TreeDataProvider<PatternTreeItem> {
+    private _onDidChangeTreeData: vscode.EventEmitter<PatternTreeItem | undefined | null | void> = new vscode.EventEmitter<PatternTreeItem | undefined | null | void>();
+    readonly onDidChangeTreeData: vscode.Event<PatternTreeItem | undefined | null | void> = this._onDidChangeTreeData.event;
+
+    refresh(): void {
+        this._onDidChangeTreeData.fire();
+    }
+
+    getTreeItem(element: PatternTreeItem): vscode.TreeItem {
+        return element;
+    }
+
+    getChildren(element?: PatternTreeItem): Thenable<PatternTreeItem[]> {
+        if (element) {
+            // Patterns don't have children
+            return Promise.resolve([]);
+        } else {
+            const patterns = getPatterns();
+            return Promise.resolve(
+                patterns.map((pattern, index) => 
+                    new PatternTreeItem(pattern, index, vscode.TreeItemCollapsibleState.None)
+                )
+            );
+        }
+    }
+}
+
 // Store improvement context for accept/reject actions
 interface ImprovementContext {
     originalUri: vscode.Uri;
@@ -138,6 +184,7 @@ interface ImprovementContext {
 let currentImprovementContext: ImprovementContext | null = null;
 let activeNotification: Thenable<string | undefined> | null = null;
 let notificationHandled = false;
+let patternTreeDataProvider: PatternTreeDataProvider;
 
 export function activate(context: vscode.ExtensionContext) {
     // Create output channel for logging
@@ -151,6 +198,35 @@ export function activate(context: vscode.ExtensionContext) {
         improvedTextProvider
     );
     context.subscriptions.push(providerRegistration);
+
+    // Create and register pattern tree view
+    patternTreeDataProvider = new PatternTreeDataProvider();
+    const treeView = vscode.window.createTreeView('deeplWritePatterns', {
+        treeDataProvider: patternTreeDataProvider,
+        showCollapseAll: false
+    });
+    context.subscriptions.push(treeView);
+
+    // Listen for checkbox state changes
+    const checkboxChangeHandler = treeView.onDidChangeCheckboxState(async (e) => {
+        const patterns = getPatterns();
+        for (const [item, checked] of e.items) {
+            if (item instanceof PatternTreeItem && item.index >= 0 && item.index < patterns.length) {
+                patterns[item.index].enabled = checked === vscode.TreeItemCheckboxState.Checked;
+            }
+        }
+        await setPatterns(patterns);
+        patternTreeDataProvider.refresh();
+    });
+    context.subscriptions.push(checkboxChangeHandler);
+
+    // Listen for configuration changes to refresh the tree
+    const configWatcher = vscode.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration(CONFIG_PATTERNS)) {
+            patternTreeDataProvider.refresh();
+        }
+    });
+    context.subscriptions.push(configWatcher);
 
     // Create main status bar item
     const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -261,7 +337,7 @@ export function activate(context: vscode.ExtensionContext) {
             {
                 label: '$(regex) Manage Regex Patterns',
                 description: patterns.length > 0 ? `${patterns.length} pattern(s) configured` : 'No patterns configured',
-                detail: 'Configure regex patterns to improve only specific parts of text'
+                detail: 'Open patterns sidebar to manage regex patterns'
             },
             {
                 label: '$(keyboard) Change Keyboard Shortcut',
@@ -389,58 +465,62 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(setToneCommand);
 
-    // Register manage patterns command
+    // Register manage patterns command - reveals the sidebar
     const managePatternsCommand = vscode.commands.registerCommand('deeplWrite.managePatterns', async () => {
+        // Reveal the patterns tree view in the sidebar
+        await vscode.commands.executeCommand('deeplWritePatterns.focus');
+    });
+    context.subscriptions.push(managePatternsCommand);
+
+    // Register add pattern command
+    const addPatternCommand = vscode.commands.registerCommand('deeplWrite.addPattern', async () => {
+        await addPattern(context);
+        patternTreeDataProvider.refresh();
+    });
+    context.subscriptions.push(addPatternCommand);
+
+    // Register toggle pattern enabled command
+    const togglePatternCommand = vscode.commands.registerCommand('deeplWrite.togglePattern', async (item: PatternTreeItem) => {
         const patterns = getPatterns();
-        
-        const items: vscode.QuickPickItem[] = [
-            {
-                label: '$(add) Add Pattern',
-                description: 'Add a new regex pattern',
-                detail: 'Create a new pattern with a named capture group'
-            },
-            ...patterns.map((pattern, index) => ({
-                label: `$(edit) ${pattern.name || `Pattern ${index + 1}`}`,
-                description: pattern.description || pattern.pattern.substring(0, 50),
-                detail: `Group: ${pattern.captureGroupName} | Pattern: ${pattern.pattern.substring(0, 30)}...`
-            })),
-            ...(patterns.length > 0 ? [{
-                label: '$(trash) Clear All Patterns',
-                description: 'Remove all configured patterns',
-                detail: 'This will delete all regex patterns'
-            }] : [])
-        ];
-
-        const selected = await vscode.window.showQuickPick(items, {
-            placeHolder: 'Manage Regex Patterns'
-        });
-
-        if (!selected) {
-            return;
+        if (item && item.index >= 0 && item.index < patterns.length) {
+            const pattern = patterns[item.index];
+            pattern.enabled = !(pattern.enabled !== false); // Toggle: default to true, so false becomes true, true becomes false
+            await setPatterns(patterns);
+            patternTreeDataProvider.refresh();
         }
+    });
+    context.subscriptions.push(togglePatternCommand);
 
-        if (selected.label.includes('Add Pattern')) {
-            await addPattern(context);
-        } else if (selected.label.includes('Clear All')) {
+    // Register edit pattern command
+    const editPatternCommand = vscode.commands.registerCommand('deeplWrite.editPattern', async (item: PatternTreeItem) => {
+        const patterns = getPatterns();
+        if (item && item.index >= 0 && item.index < patterns.length) {
+            await editPattern(context, patterns[item.index], item.index);
+            patternTreeDataProvider.refresh();
+        }
+    });
+    context.subscriptions.push(editPatternCommand);
+
+    // Register delete pattern command
+    const deletePatternCommand = vscode.commands.registerCommand('deeplWrite.deletePattern', async (item: PatternTreeItem) => {
+        const patterns = getPatterns();
+        if (item && item.index >= 0 && item.index < patterns.length) {
+            const pattern = patterns[item.index];
             const confirm = await vscode.window.showWarningMessage(
-                'Are you sure you want to delete all patterns?',
+                `Are you sure you want to delete pattern "${pattern.name}"?`,
                 { modal: true },
                 'Yes',
                 'No'
             );
             if (confirm === 'Yes') {
-                await setPatterns([]);
-                vscode.window.showInformationMessage('All patterns cleared');
-            }
-        } else {
-            // Edit or delete pattern
-            const patternIndex = items.indexOf(selected) - 1; // Subtract 1 for "Add Pattern" item
-            if (patternIndex >= 0 && patternIndex < patterns.length) {
-                await editPattern(context, patterns[patternIndex], patternIndex);
+                patterns.splice(item.index, 1);
+                await setPatterns(patterns);
+                patternTreeDataProvider.refresh();
+                vscode.window.showInformationMessage(`Pattern "${pattern.name}" deleted`);
             }
         }
     });
-    context.subscriptions.push(managePatternsCommand);
+    context.subscriptions.push(deletePatternCommand);
 
     // Register open keyboard shortcuts command
     const openKeyboardShortcutsCommand = vscode.commands.registerCommand('deeplWrite.openKeyboardShortcuts', async () => {
@@ -867,14 +947,18 @@ function rangesOverlap(start1: number, end1: number, start2: number, end2: numbe
 /**
  * Applies regex patterns to text and extracts matches with named capture groups
  * Only the first matching pattern for each piece of text is applied (no overlaps)
+ * Only enabled patterns are applied
  */
 function applyPatterns(text: string, patterns: RegexPattern[], outputChannel?: vscode.OutputChannel): PatternMatch[] {
     const matches: PatternMatch[] = [];
     // Track which parts of the text have already been matched (by capture group positions)
     const matchedRanges: Array<{ start: number; end: number }> = [];
     
+    // Filter to only enabled patterns (enabled defaults to true for backward compatibility)
+    const enabledPatterns = patterns.filter(p => p.enabled !== false);
+    
     // Check patterns in order - first pattern that matches takes precedence
-    for (const patternConfig of patterns) {
+    for (const patternConfig of enabledPatterns) {
         try {
             const regex = new RegExp(patternConfig.pattern, 'g');
             let match;
@@ -925,14 +1009,14 @@ function applyPatterns(text: string, patterns: RegexPattern[], outputChannel?: v
     }
     
     // Log summary only if matches found or errors occurred
-    if (outputChannel && (matches.length > 0 || patterns.length > 0)) {
+    if (outputChannel && (matches.length > 0 || enabledPatterns.length > 0)) {
         if (matches.length > 0) {
-            outputChannel.appendLine(`Pattern matching: ${matches.length} match(es) found`);
+            outputChannel.appendLine(`Pattern matching: ${matches.length} match(es) found (${enabledPatterns.length} enabled pattern(s) checked)`);
             matches.forEach((match, index) => {
                 outputChannel.appendLine(`  ${index + 1}. "${match.patternName}": "${match.captureGroupContent}"`);
             });
-        } else if (patterns.length > 0) {
-            outputChannel.appendLine(`Pattern matching: No matches found (${patterns.length} pattern(s) checked)`);
+        } else if (enabledPatterns.length > 0) {
+            outputChannel.appendLine(`Pattern matching: No matches found (${enabledPatterns.length} enabled pattern(s) checked)`);
         }
     }
     
@@ -1013,7 +1097,8 @@ async function addPattern(context: vscode.ExtensionContext) {
         name: name,
         pattern: pattern,
         captureGroupName: captureGroupName,
-        description: description
+        description: description,
+        enabled: true
     });
 
     await setPatterns(patterns);
@@ -1021,76 +1106,61 @@ async function addPattern(context: vscode.ExtensionContext) {
 }
 
 async function editPattern(context: vscode.ExtensionContext, pattern: RegexPattern, index: number) {
-    const actions = ['Edit', 'Delete', 'Cancel'];
-    const action = await vscode.window.showQuickPick(actions, {
-        placeHolder: `What would you like to do with "${pattern.name}"?`
+    const name = await vscode.window.showInputBox({
+        prompt: 'Enter a name for this pattern',
+        value: pattern.name,
+        ignoreFocusOut: true
     });
 
-    if (!action || action === 'Cancel') {
+    if (!name) {
         return;
     }
 
-    if (action === 'Delete') {
-        const patterns = getPatterns();
-        patterns.splice(index, 1);
-        await setPatterns(patterns);
-        vscode.window.showInformationMessage(`Pattern "${pattern.name}" deleted`);
-    } else if (action === 'Edit') {
-        const name = await vscode.window.showInputBox({
-            prompt: 'Enter a name for this pattern',
-            value: pattern.name,
-            ignoreFocusOut: true
-        });
+    const patternStr = await vscode.window.showInputBox({
+        prompt: 'Enter the regex pattern',
+        value: pattern.pattern,
+        ignoreFocusOut: true
+    });
 
-        if (!name) {
-            return;
-        }
-
-        const patternStr = await vscode.window.showInputBox({
-            prompt: 'Enter the regex pattern',
-            value: pattern.pattern,
-            ignoreFocusOut: true
-        });
-
-        if (!patternStr) {
-            return;
-        }
-
-        // Validate regex
-        try {
-            new RegExp(patternStr);
-        } catch (error) {
-            vscode.window.showErrorMessage(`Invalid regex pattern: ${error}`);
-            return;
-        }
-
-        const captureGroupName = await vscode.window.showInputBox({
-            prompt: 'Enter the name of the capture group',
-            value: pattern.captureGroupName,
-            ignoreFocusOut: true
-        });
-
-        if (!captureGroupName) {
-            return;
-        }
-
-        const description = await vscode.window.showInputBox({
-            prompt: 'Enter a description (optional)',
-            value: pattern.description || '',
-            ignoreFocusOut: true
-        });
-
-        const patterns = getPatterns();
-        patterns[index] = {
-            name: name,
-            pattern: patternStr,
-            captureGroupName: captureGroupName,
-            description: description
-        };
-
-        await setPatterns(patterns);
-        vscode.window.showInformationMessage(`Pattern "${name}" updated`);
+    if (!patternStr) {
+        return;
     }
+
+    // Validate regex
+    try {
+        new RegExp(patternStr);
+    } catch (error) {
+        vscode.window.showErrorMessage(`Invalid regex pattern: ${error}`);
+        return;
+    }
+
+    const captureGroupName = await vscode.window.showInputBox({
+        prompt: 'Enter the name of the capture group',
+        value: pattern.captureGroupName,
+        ignoreFocusOut: true
+    });
+
+    if (!captureGroupName) {
+        return;
+    }
+
+    const description = await vscode.window.showInputBox({
+        prompt: 'Enter a description (optional)',
+        value: pattern.description || '',
+        ignoreFocusOut: true
+    });
+
+    const patterns = getPatterns();
+    patterns[index] = {
+        name: name,
+        pattern: patternStr,
+        captureGroupName: captureGroupName,
+        description: description,
+        enabled: pattern.enabled !== false // Preserve enabled state
+    };
+
+    await setPatterns(patterns);
+    vscode.window.showInformationMessage(`Pattern "${name}" updated`);
 }
 
 export function deactivate() {}

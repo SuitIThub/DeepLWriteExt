@@ -2,7 +2,7 @@
   "name": "deepl-write-extension",
   "displayName": "DeepL Write Extension",
   "description": "Improve your text using DeepL Write API",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "publisher": "Suit-Ji",
   "icon": "icon.png",
   "repository": {
@@ -56,14 +56,61 @@
       {
         "command": "deeplWrite.rejectChanges",
         "title": "Reject Changes"
+      },
+      {
+        "command": "deeplWrite.addPattern",
+        "title": "Add Pattern",
+        "icon": "$(add)"
+      },
+      {
+        "command": "deeplWrite.togglePattern",
+        "title": "Toggle Pattern"
+      },
+      {
+        "command": "deeplWrite.editPattern",
+        "title": "Edit Pattern",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "deeplWrite.deletePattern",
+        "title": "Delete Pattern",
+        "icon": "$(trash)"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "deeplWritePatterns",
+          "name": "DeepL Write Patterns",
+          "when": "true"
+        }
+      ]
+    },
     "menus": {
       "editor/context": [
         {
           "command": "deeplWrite.improveText",
           "when": "editorHasSelection",
           "group": "deeplWrite"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "deeplWrite.addPattern",
+          "when": "view == deeplWritePatterns",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "deeplWrite.editPattern",
+          "when": "view == deeplWritePatterns && viewItem == pattern",
+          "group": "inline"
+        },
+        {
+          "command": "deeplWrite.deletePattern",
+          "when": "view == deeplWritePatterns && viewItem == pattern",
+          "group": "inline"
         }
       ]
     },
@@ -149,6 +196,11 @@
               "description": {
                 "type": "string",
                 "description": "Optional description"
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "Whether the pattern is active for text improvement",
+                "default": true
               }
             }
           }
